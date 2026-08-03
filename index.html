@@ -820,267 +820,347 @@
 
 <div id="toast"></div>
 
-<script>
-(function(){
-  "use strict";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, collection, query, where,
+  onSnapshot, runTransaction, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  document.getElementById('year').textContent = new Date().getFullYear();
+const firebaseConfig = {
+  apiKey: "AIzaSyAPM-JrpA2OzG7P3zg5r2pHh90XWEoFdCA",
+  authDomain: "woman-fuwari.firebaseapp.com",
+  projectId: "woman-fuwari",
+  storageBucket: "woman-fuwari.firebasestorage.app",
+  messagingSenderId: "1073396336584",
+  appId: "1:1073396336584:web:6b426807d40bb4fa5662fd"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  /* ---------- Mobile nav ---------- */
-  var hamburgerBtn = document.getElementById('hamburgerBtn');
-  var mobileNav = document.getElementById('mobileNav');
-  hamburgerBtn.addEventListener('click', function(){
-    var isOpen = mobileNav.classList.toggle('open');
-    hamburgerBtn.setAttribute('aria-expanded', isOpen);
-  });
-  mobileNav.querySelectorAll('a').forEach(function(a){
-    a.addEventListener('click', function(){ mobileNav.classList.remove('open'); });
-  });
+document.getElementById('year').textContent = new Date().getFullYear();
 
-  /* ---------- Fade-in on scroll ---------- */
-  var observer = new IntersectionObserver(function(entries){
-    entries.forEach(function(entry){
-      if(entry.isIntersecting){
-        entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.15 });
-  document.querySelectorAll('.fade-in').forEach(function(el){ observer.observe(el); });
+/* ---------- Mobile nav ---------- */
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const mobileNav = document.getElementById('mobileNav');
+hamburgerBtn.addEventListener('click', function(){
+  const isOpen = mobileNav.classList.toggle('open');
+  hamburgerBtn.setAttribute('aria-expanded', isOpen);
+});
+mobileNav.querySelectorAll('a').forEach(function(a){
+  a.addEventListener('click', function(){ mobileNav.classList.remove('open'); });
+});
 
-  /* ---------- Booking data ---------- */
-  var STORAGE_KEY = 'fuwari_bookings_v1';
-  var CLOSED_WEEKDAY = 3; // 水曜定休
-  var TIME_SLOTS = ['10:00','11:30','13:00','14:30','16:00','17:30'];
-  var WEEKDAYS = ['日','月','火','水','木','金','土'];
-  var DAYS_TO_SHOW = 14;
-
-  var state = { selectedDate: null, selectedTime: null };
-
-  function pad(n){ return n < 10 ? '0'+n : ''+n; }
-  function toISODate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return toISODate(d); }
-
-  function loadBookings(){
-    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-    catch(e){ return []; }
-  }
-  function saveBookings(list){ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
-
-  function buildDateList(){
-    var list = [];
-    var base = new Date(); base.setHours(0,0,0,0);
-    var i = 0;
-    while(list.length < DAYS_TO_SHOW && i < 60){
-      var d = new Date(base);
-      d.setDate(base.getDate() + i);
-      if(d.getDay() !== CLOSED_WEEKDAY){ list.push(d); }
-      i++;
+/* ---------- Fade-in on scroll ---------- */
+const observer = new IntersectionObserver(function(entries){
+  entries.forEach(function(entry){
+    if(entry.isIntersecting){
+      entry.target.classList.add('is-visible');
+      observer.unobserve(entry.target);
     }
-    return list;
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.fade-in').forEach(function(el){ observer.observe(el); });
+
+/* ---------- Booking data ----------
+   Availability lives in Firestore so it's shared across every visitor/device in real time.
+   Personal details (bookings/{id}) can only be fetched by exact document ID (see security rules),
+   so we keep the IDs of "my" bookings in localStorage to know which ones belong to this browser. */
+const MY_BOOKINGS_KEY = 'fuwari_my_booking_ids_v1';
+const CLOSED_WEEKDAY = 3; // 水曜定休
+const TIME_SLOTS = ['10:00','11:30','13:00','14:30','16:00','17:30'];
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+const DAYS_TO_SHOW = 14;
+
+const state = { selectedDate: null, selectedTime: null };
+let currentSlotsMap = {};
+let unsubscribeSlots = null;
+
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function toISODate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function todayISO(){ const d=new Date(); d.setHours(0,0,0,0); return toISODate(d); }
+
+function loadMyBookingIds(){
+  try{ return JSON.parse(localStorage.getItem(MY_BOOKINGS_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveMyBookingIds(ids){ localStorage.setItem(MY_BOOKINGS_KEY, JSON.stringify(ids)); }
+function addMyBookingId(id){ const ids = loadMyBookingIds(); ids.push(id); saveMyBookingIds(ids); }
+function removeMyBookingId(id){ saveMyBookingIds(loadMyBookingIds().filter(function(x){ return x !== id; })); }
+
+function buildDateList(){
+  const list = [];
+  const base = new Date(); base.setHours(0,0,0,0);
+  let i = 0;
+  while(list.length < DAYS_TO_SHOW && i < 60){
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    if(d.getDay() !== CLOSED_WEEKDAY){ list.push(d); }
+    i++;
   }
+  return list;
+}
 
-  function isPastSlot(dateISO, time){
-    if(dateISO !== todayISO()) return false;
-    var now = new Date();
-    var parts = time.split(':');
-    var slot = new Date();
-    slot.setHours(parseInt(parts[0],10), parseInt(parts[1],10), 0, 0);
-    return slot.getTime() <= now.getTime();
+function isPastSlot(dateISO, time){
+  if(dateISO !== todayISO()) return false;
+  const now = new Date();
+  const parts = time.split(':');
+  const slot = new Date();
+  slot.setHours(parseInt(parts[0],10), parseInt(parts[1],10), 0, 0);
+  return slot.getTime() <= now.getTime();
+}
+
+const datePicker = document.getElementById('datePicker');
+const timePicker = document.getElementById('timePicker');
+const selectedSummary = document.getElementById('selectedSummary');
+const submitBtn = document.getElementById('submitBtn');
+
+function renderDatePicker(){
+  const dates = buildDateList();
+  datePicker.innerHTML = '';
+  dates.forEach(function(d){
+    const iso = toISODate(d);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'date-btn' + (state.selectedDate === iso ? ' active' : '');
+    btn.innerHTML = (d.getMonth()+1) + '/' + d.getDate() + '<small>(' + WEEKDAYS[d.getDay()] + ')</small>';
+    btn.addEventListener('click', function(){
+      state.selectedDate = iso;
+      state.selectedTime = null;
+      renderDatePicker();
+      subscribeSlotsForDate(iso);
+      updateSummary();
+    });
+    datePicker.appendChild(btn);
+  });
+  if(!state.selectedDate && dates.length){
+    state.selectedDate = toISODate(dates[0]);
+    datePicker.querySelector('.date-btn').classList.add('active');
   }
+}
 
-  function isBooked(dateISO, time){
-    return loadBookings().some(function(b){ return b.date === dateISO && b.time === time; });
-  }
+function subscribeSlotsForDate(dateISO){
+  if(unsubscribeSlots){ unsubscribeSlots(); unsubscribeSlots = null; }
+  currentSlotsMap = {};
+  renderTimePicker();
+  const q = query(collection(db, 'slots'), where('date', '==', dateISO));
+  unsubscribeSlots = onSnapshot(q, function(snap){
+    const map = {};
+    snap.forEach(function(d){ map[d.data().time] = true; });
+    currentSlotsMap = map;
+    renderTimePicker();
+  }, function(err){
+    console.error(err);
+    showToast('空き状況の取得に失敗しました。通信環境をご確認ください。');
+  });
+}
 
-  var datePicker = document.getElementById('datePicker');
-  var timePicker = document.getElementById('timePicker');
-  var selectedSummary = document.getElementById('selectedSummary');
-  var submitBtn = document.getElementById('submitBtn');
-
-  function renderDatePicker(){
-    var dates = buildDateList();
-    datePicker.innerHTML = '';
-    dates.forEach(function(d){
-      var iso = toISODate(d);
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'date-btn' + (state.selectedDate === iso ? ' active' : '');
-      btn.innerHTML = (d.getMonth()+1) + '/' + d.getDate() + '<small>(' + WEEKDAYS[d.getDay()] + ')</small>';
+function renderTimePicker(){
+  timePicker.innerHTML = '';
+  if(!state.selectedDate) return;
+  TIME_SLOTS.forEach(function(time){
+    const booked = !!currentSlotsMap[time];
+    const past = isPastSlot(state.selectedDate, time);
+    const disabled = booked || past;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    let cls = 'time-btn ' + (disabled ? 'disabled' : 'available');
+    if(!disabled && state.selectedTime === time) cls += ' selected';
+    btn.className = cls;
+    const statusText = past ? '受付終了' : (booked ? '予約済み' : '空きあり');
+    btn.innerHTML = time + '<span class="status">' + statusText + '</span>';
+    if(!disabled){
       btn.addEventListener('click', function(){
-        state.selectedDate = iso;
-        state.selectedTime = null;
-        renderDatePicker();
+        state.selectedTime = time;
         renderTimePicker();
         updateSummary();
       });
-      datePicker.appendChild(btn);
-    });
-    if(!state.selectedDate && dates.length){
-      state.selectedDate = toISODate(dates[0]);
-      datePicker.querySelector('.date-btn').classList.add('active');
-    }
-  }
-
-  function renderTimePicker(){
-    timePicker.innerHTML = '';
-    if(!state.selectedDate) return;
-    TIME_SLOTS.forEach(function(time){
-      var booked = isBooked(state.selectedDate, time);
-      var past = isPastSlot(state.selectedDate, time);
-      var disabled = booked || past;
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      var cls = 'time-btn ' + (disabled ? 'disabled' : 'available');
-      if(!disabled && state.selectedTime === time) cls += ' selected';
-      btn.className = cls;
-      var statusText = past ? '受付終了' : (booked ? '予約済み' : '空きあり');
-      btn.innerHTML = time + '<span class="status">' + statusText + '</span>';
-      if(!disabled){
-        btn.addEventListener('click', function(){
-          state.selectedTime = time;
-          renderTimePicker();
-          updateSummary();
-        });
-      } else {
-        btn.disabled = true;
-      }
-      timePicker.appendChild(btn);
-    });
-  }
-
-  function formatDateLabel(iso){
-    var parts = iso.split('-').map(Number);
-    var d = new Date(parts[0], parts[1]-1, parts[2]);
-    return parts[1] + '月' + parts[2] + '日(' + WEEKDAYS[d.getDay()] + ')';
-  }
-
-  function updateSummary(){
-    if(state.selectedDate && state.selectedTime){
-      selectedSummary.className = 'selected-summary';
-      selectedSummary.textContent = formatDateLabel(state.selectedDate) + ' ' + state.selectedTime + '〜 でご予約手続きを進めます';
     } else {
-      selectedSummary.className = 'selected-summary empty';
-      selectedSummary.textContent = '日付と時間を選択してください';
+      btn.disabled = true;
     }
-    checkFormValidity();
-  }
-
-  /* ---------- Form ---------- */
-  var form = document.getElementById('bookingForm');
-  var menuSelect = document.getElementById('menuSelect');
-  var nameInput = document.getElementById('nameInput');
-  var telInput = document.getElementById('telInput');
-  var emailInput = document.getElementById('emailInput');
-  var noteInput = document.getElementById('noteInput');
-
-  function checkFormValidity(){
-    var ok = state.selectedDate && state.selectedTime &&
-      menuSelect.value.trim() !== '' &&
-      nameInput.value.trim() !== '' &&
-      telInput.value.trim() !== '';
-    submitBtn.disabled = !ok;
-  }
-  [menuSelect, nameInput, telInput].forEach(function(el){
-    el.addEventListener('input', checkFormValidity);
-    el.addEventListener('change', checkFormValidity);
+    timePicker.appendChild(btn);
   });
+}
 
-  function showToast(msg){
-    var toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    setTimeout(function(){ toast.classList.remove('show'); }, 3200);
+function formatDateLabel(iso){
+  const parts = iso.split('-').map(Number);
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  return parts[1] + '月' + parts[2] + '日(' + WEEKDAYS[d.getDay()] + ')';
+}
+
+function updateSummary(){
+  if(state.selectedDate && state.selectedTime){
+    selectedSummary.className = 'selected-summary';
+    selectedSummary.textContent = formatDateLabel(state.selectedDate) + ' ' + state.selectedTime + '〜 でご予約手続きを進めます';
+  } else {
+    selectedSummary.className = 'selected-summary empty';
+    selectedSummary.textContent = '日付と時間を選択してください';
   }
+  checkFormValidity();
+}
 
-  function genId(){
-    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'b_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
-  }
+/* ---------- Form ---------- */
+const form = document.getElementById('bookingForm');
+const menuSelect = document.getElementById('menuSelect');
+const nameInput = document.getElementById('nameInput');
+const telInput = document.getElementById('telInput');
+const emailInput = document.getElementById('emailInput');
+const noteInput = document.getElementById('noteInput');
 
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    if(!state.selectedDate || !state.selectedTime) return;
-    if(isBooked(state.selectedDate, state.selectedTime)){
-      showToast('その時間はすでに予約が入りました。別の時間をお選びください。');
-      renderTimePicker();
-      return;
-    }
+function checkFormValidity(){
+  const ok = state.selectedDate && state.selectedTime &&
+    menuSelect.value.trim() !== '' &&
+    nameInput.value.trim() !== '' &&
+    telInput.value.trim() !== '';
+  submitBtn.disabled = !ok;
+}
+[menuSelect, nameInput, telInput].forEach(function(el){
+  el.addEventListener('input', checkFormValidity);
+  el.addEventListener('change', checkFormValidity);
+});
 
-    var bookings = loadBookings();
-    bookings.push({
-      id: genId(),
-      date: state.selectedDate,
-      time: state.selectedTime,
-      menu: menuSelect.value,
-      name: nameInput.value.trim(),
-      tel: telInput.value.trim(),
-      email: emailInput.value.trim(),
-      note: noteInput.value.trim(),
-      createdAt: new Date().toISOString()
+function showToast(msg){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(function(){ toast.classList.remove('show'); }, 3200);
+}
+
+form.addEventListener('submit', async function(e){
+  e.preventDefault();
+  if(!state.selectedDate || !state.selectedTime) return;
+
+  const date = state.selectedDate;
+  const time = state.selectedTime;
+  const slotRef = doc(db, 'slots', date + '_' + time);
+  const bookingRef = doc(collection(db, 'bookings'));
+
+  submitBtn.disabled = true;
+  const originalLabel = submitBtn.textContent;
+  submitBtn.textContent = '送信中...';
+
+  try{
+    await runTransaction(db, async function(tx){
+      const slotSnap = await tx.get(slotRef);
+      if(slotSnap.exists()){
+        throw new Error('ALREADY_BOOKED');
+      }
+      tx.set(slotRef, { date: date, time: time, bookingId: bookingRef.id });
+      tx.set(bookingRef, {
+        date: date,
+        time: time,
+        menu: menuSelect.value,
+        name: nameInput.value.trim(),
+        tel: telInput.value.trim(),
+        email: emailInput.value.trim(),
+        note: noteInput.value.trim(),
+        createdAt: serverTimestamp()
+      });
     });
-    saveBookings(bookings);
 
+    addMyBookingId(bookingRef.id);
     showToast('ご予約ありがとうございます。仮予約が完了しました。');
-
     form.reset();
     state.selectedTime = null;
     updateSummary();
-    renderTimePicker();
     renderMyBookings();
-  });
-
-  /* ---------- My bookings ---------- */
-  var myBookingsList = document.getElementById('myBookingsList');
-
-  function renderMyBookings(){
-    var bookings = loadBookings().slice().sort(function(a,b){
-      return (a.date+a.time).localeCompare(b.date+b.time);
-    });
-    myBookingsList.innerHTML = '';
-    if(bookings.length === 0){
-      myBookingsList.innerHTML = '<div class="empty-state">現在のご予約はありません。</div>';
-      return;
+  } catch(err){
+    if(err && err.message === 'ALREADY_BOOKED'){
+      showToast('その時間はすでに予約が入りました。別の時間をお選びください。');
+    } else {
+      console.error(err);
+      showToast('予約に失敗しました。通信環境をご確認のうえ、もう一度お試しください。');
     }
-    bookings.forEach(function(b){
-      var item = document.createElement('div');
-      item.className = 'mybooking-item';
-      item.innerHTML =
-        '<div class="info">' +
-          '<b>' + formatDateLabel(b.date) + ' ' + b.time + '〜</b>' +
-          '<div>' + escapeHTML(b.menu) + '</div>' +
-          '<div>' + escapeHTML(b.name) + ' 様 / ' + escapeHTML(b.tel) + '</div>' +
-        '</div>';
-      var cancelBtn = document.createElement('button');
-      cancelBtn.type = 'button';
-      cancelBtn.className = 'btn-cancel';
-      cancelBtn.textContent = 'キャンセル';
-      cancelBtn.addEventListener('click', function(){
-        if(!confirm(formatDateLabel(b.date) + ' ' + b.time + '〜 のご予約をキャンセルしますか？')) return;
-        var updated = loadBookings().filter(function(x){ return x.id !== b.id; });
-        saveBookings(updated);
-        renderMyBookings();
-        renderTimePicker();
+  } finally {
+    submitBtn.textContent = originalLabel;
+    checkFormValidity();
+  }
+});
+
+/* ---------- My bookings ---------- */
+const myBookingsList = document.getElementById('myBookingsList');
+
+async function renderMyBookings(){
+  const ids = loadMyBookingIds();
+  if(ids.length === 0){
+    myBookingsList.innerHTML = '<div class="empty-state">現在のご予約はありません。</div>';
+    return;
+  }
+  myBookingsList.innerHTML = '<div class="empty-state">読み込み中...</div>';
+
+  const results = [];
+  const staleIds = [];
+  for(const id of ids){
+    try{
+      const snap = await getDoc(doc(db, 'bookings', id));
+      if(snap.exists()){
+        results.push(Object.assign({ id: id }, snap.data()));
+      } else {
+        staleIds.push(id);
+      }
+    } catch(err){
+      console.error(err);
+    }
+  }
+  if(staleIds.length){
+    saveMyBookingIds(ids.filter(function(id){ return staleIds.indexOf(id) === -1; }));
+  }
+
+  if(results.length === 0){
+    myBookingsList.innerHTML = '<div class="empty-state">現在のご予約はありません。</div>';
+    return;
+  }
+  results.sort(function(a,b){ return (a.date+a.time).localeCompare(b.date+b.time); });
+
+  myBookingsList.innerHTML = '';
+  results.forEach(function(b){
+    const item = document.createElement('div');
+    item.className = 'mybooking-item';
+    item.innerHTML =
+      '<div class="info">' +
+        '<b>' + formatDateLabel(b.date) + ' ' + b.time + '〜</b>' +
+        '<div>' + escapeHTML(b.menu) + '</div>' +
+        '<div>' + escapeHTML(b.name) + ' 様 / ' + escapeHTML(b.tel) + '</div>' +
+      '</div>';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn-cancel';
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.addEventListener('click', async function(){
+      if(!confirm(formatDateLabel(b.date) + ' ' + b.time + '〜 のご予約をキャンセルしますか？')) return;
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = '処理中...';
+      try{
+        await runTransaction(db, async function(tx){
+          tx.delete(doc(db, 'bookings', b.id));
+          tx.delete(doc(db, 'slots', b.date + '_' + b.time));
+        });
+        removeMyBookingId(b.id);
         showToast('ご予約をキャンセルしました。');
-      });
-      item.appendChild(cancelBtn);
-      myBookingsList.appendChild(item);
+        renderMyBookings();
+      } catch(err){
+        console.error(err);
+        showToast('キャンセルに失敗しました。もう一度お試しください。');
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = 'キャンセル';
+      }
     });
-  }
+    item.appendChild(cancelBtn);
+    myBookingsList.appendChild(item);
+  });
+}
 
-  function escapeHTML(str){
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
+function escapeHTML(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
-  /* ---------- Init ---------- */
-  renderDatePicker();
-  renderTimePicker();
-  updateSummary();
-  renderMyBookings();
-
-})();
+/* ---------- Init ---------- */
+renderDatePicker();
+subscribeSlotsForDate(state.selectedDate);
+updateSummary();
+renderMyBookings();
 </script>
 </body>
 </html>
