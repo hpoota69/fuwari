@@ -2,4 +2,5 @@
 # 同じ作業フォルダにある他の個人ファイル・別プロジェクトは含めません。
 *
 !index.html
+!admin.html
 !.gitignore

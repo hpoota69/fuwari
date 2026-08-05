@@ -823,7 +823,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, collection, query, where,
+  getFirestore, doc, getDoc, getDocs, collection, query, where,
   onSnapshot, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -875,6 +875,7 @@ const DAYS_TO_SHOW = 14;
 const state = { selectedDate: null, selectedTime: null };
 let currentSlotsMap = {};
 let unsubscribeSlots = null;
+let closedDatesSet = new Set();
 
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function toISODate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
@@ -895,10 +896,20 @@ function buildDateList(){
   while(list.length < DAYS_TO_SHOW && i < 60){
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    if(d.getDay() !== CLOSED_WEEKDAY){ list.push(d); }
+    const iso = toISODate(d);
+    if(d.getDay() !== CLOSED_WEEKDAY && !closedDatesSet.has(iso)){ list.push(d); }
     i++;
   }
   return list;
+}
+
+async function loadClosedDates(){
+  try{
+    const snap = await getDocs(collection(db, 'closedDates'));
+    closedDatesSet = new Set(snap.docs.map(function(d){ return d.id; }));
+  } catch(err){
+    console.error(err);
+  }
 }
 
 function isPastSlot(dateISO, time){
@@ -1157,6 +1168,7 @@ function escapeHTML(str){
 }
 
 /* ---------- Init ---------- */
+await loadClosedDates();
 renderDatePicker();
 subscribeSlotsForDate(state.selectedDate);
 updateSummary();

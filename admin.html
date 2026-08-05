@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面｜女性整体サロン fuwari</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fff9f6;
+    --card-bg:#ffffff;
+    --primary:#e98ca0;
+    --primary-dark:#d8697f;
+    --secondary:#f6d9cb;
+    --secondary-light:#fdf0e8;
+    --text:#4a3b3b;
+    --text-light:#8a7873;
+    --success:#6fae7c;
+    --disabled-bg:#f2e9e9;
+    --disabled-text:#b7a7a7;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-soft:0 12px 30px -10px rgba(216,105,127,0.28);
+    --shadow-card:0 8px 24px -12px rgba(74,59,59,0.18);
+    --max-width:820px;
+  }
+  *,*::before,*::after{ box-sizing:border-box; }
+  body{
+    margin:0;
+    font-family:'Noto Sans JP','Zen Maru Gothic',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.7;
+  }
+  h1,h2{ font-family:'Zen Maru Gothic','Noto Sans JP',sans-serif; margin:0 0 .4em; }
+  button{ font-family:inherit; cursor:pointer; }
+
+  /* ---------- Login ---------- */
+  .login-wrap{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .login-card{
+    background:var(--card-bg);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-card);
+    padding:40px 32px;
+    width:100%;
+    max-width:360px;
+    text-align:center;
+  }
+  .login-logo{
+    width:52px;height:52px;border-radius:50%;
+    background:linear-gradient(135deg,var(--primary),var(--secondary));
+    color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:1.4rem;font-weight:700;
+    margin:0 auto 16px;
+  }
+  .login-card h1{ font-size:1.2rem; }
+  .login-card p{ color:var(--text-light); font-size:.88rem; margin-bottom:22px; }
+
+  /* ---------- Shared field styles ---------- */
+  .field{ text-align:left; margin-bottom:16px; }
+  .field label{ display:block; font-size:.82rem; font-weight:700; margin-bottom:6px; }
+  .field input{
+    width:100%;
+    padding:11px 13px;
+    border-radius:var(--radius-sm);
+    border:1.5px solid rgba(74,59,59,0.18);
+    font-size:.95rem;
+    font-family:inherit;
+    background:#fff;
+    color:var(--text);
+  }
+  .field input:focus{ outline:none; border-color:var(--primary); }
+
+  .btn-submit{
+    width:100%;
+    background:var(--primary);
+    color:#fff;
+    border:none;
+    padding:13px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:.95rem;
+    box-shadow:var(--shadow-soft);
+  }
+  .btn-submit:hover{ background:var(--primary-dark); }
+  .error-text{ color:#b8394a; font-size:.82rem; margin-top:12px; min-height:1em; }
+
+  /* ---------- Admin shell ---------- */
+  .admin-header{
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px;
+    background:rgba(255,249,246,0.9);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid rgba(216,105,127,0.15);
+  }
+  .admin-header .logo{ font-weight:700; color:var(--primary-dark); }
+  .admin-user{ display:flex; align-items:center; gap:12px; font-size:.85rem; color:var(--text-light); }
+  .btn-outline-sm{
+    background:#fff;
+    border:1.5px solid var(--primary);
+    color:var(--primary-dark);
+    padding:6px 16px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:.8rem;
+  }
+  .btn-outline-sm:hover{ background:var(--primary); color:#fff; }
+
+  .admin-main{
+    max-width:var(--max-width);
+    margin:0 auto;
+    padding:28px 18px 60px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+  .card{
+    background:var(--card-bg);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-card);
+    padding:26px 24px;
+  }
+  .card h2{ font-size:1.1rem; }
+  .hint{ color:var(--text-light); font-size:.85rem; margin-top:0; margin-bottom:18px; }
+
+  /* date/time pickers (shared look with the public site) */
+  .date-picker{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 14px; }
+  .date-btn{
+    flex:0 0 auto;
+    border:2px solid rgba(216,105,127,0.2);
+    background:#fff;
+    border-radius:var(--radius-sm);
+    padding:10px 14px;
+    font-weight:700;
+    font-size:.85rem;
+    text-align:center;
+    min-width:70px;
+  }
+  .date-btn small{ display:block; font-weight:400; color:var(--text-light); font-size:.7rem; }
+  .date-btn.active{ background:var(--primary); border-color:var(--primary); color:#fff; }
+  .date-btn.active small{ color:rgba(255,255,255,0.85); }
+
+  .time-picker{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+    gap:12px;
+  }
+  .time-btn{
+    border:2px solid rgba(216,105,127,0.2);
+    background:#fff;
+    border-radius:var(--radius-sm);
+    padding:12px 8px;
+    text-align:center;
+    font-weight:700;
+    font-size:.9rem;
+  }
+  .time-btn .status{ display:block; font-size:.7rem; font-weight:500; margin-top:4px; color:var(--text-light); }
+  .time-btn.available{ }
+  .time-btn.available .status{ color:var(--success); }
+  .time-btn.selected{ background:var(--secondary-light); border-color:var(--primary); }
+  .time-btn.selected .status{ color:var(--primary-dark); }
+  .time-btn.disabled{ background:var(--disabled-bg); color:var(--disabled-text); border-color:transparent; cursor:not-allowed; }
+  .time-btn.disabled .status{ color:var(--disabled-text); }
+
+  /* rows: bookings & closed dates */
+  .booking-row{
+    display:flex; justify-content:space-between; align-items:center; gap:14px;
+    background:var(--secondary-light);
+    border-radius:var(--radius-sm);
+    padding:14px 18px;
+    margin-bottom:10px;
+    flex-wrap:wrap;
+  }
+  .booking-main b{ color:var(--primary-dark); }
+  .booking-main div{ font-size:.85rem; color:var(--text-light); margin-top:2px; }
+  .booking-main .note{ color:var(--text); }
+  .btn-cancel{
+    background:#fff;
+    border:1.5px solid var(--primary);
+    color:var(--primary-dark);
+    padding:7px 16px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:.8rem;
+    white-space:nowrap;
+  }
+  .btn-cancel:hover{ background:var(--primary); color:#fff; }
+  .empty-state{ text-align:center; color:var(--text-light); padding:16px; font-size:.88rem; }
+
+  .closed-date-form{ display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+  .closed-date-form input{
+    flex:1;
+    min-width:160px;
+    padding:11px 13px;
+    border-radius:var(--radius-sm);
+    border:1.5px solid rgba(74,59,59,0.18);
+    font-family:inherit;
+    font-size:.9rem;
+  }
+  .btn-submit-sm{
+    background:var(--primary);
+    color:#fff;
+    border:none;
+    padding:11px 20px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:.85rem;
+  }
+  .btn-submit-sm:hover{ background:var(--primary-dark); }
+
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translate(-50%, 20px);
+    background:var(--primary-dark); color:#fff;
+    padding:13px 24px; border-radius:999px;
+    font-weight:700; font-size:.88rem;
+    box-shadow:var(--shadow-soft);
+    opacity:0; pointer-events:none;
+    transition:opacity .3s ease, transform .3s ease;
+    z-index:999; max-width:90vw; text-align:center;
+  }
+  #toast.show{ opacity:1; transform:translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">ふ</div>
+    <h1>fuwari 管理画面</h1>
+    <p>スタッフ専用ページです。Firebaseで発行したアカウントでログインしてください。</p>
+    <form id="loginForm">
+      <div class="field">
+        <label>メールアドレス</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>パスワード</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-submit">ログイン</button>
+      <p class="error-text" id="loginError"></p>
+    </form>
+  </div>
+</div>
+
+<div id="adminScreen" hidden>
+  <header class="admin-header">
+    <div class="logo">ふ fuwari 管理画面</div>
+    <div class="admin-user">
+      <span id="userEmail"></span>
+      <button id="logoutBtn" class="btn-outline-sm">ログアウト</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <section class="card">
+      <h2>予約一覧</h2>
+      <p class="hint">サイトから入った予約が日時順に表示されます。</p>
+      <div id="bookingsTable"><div class="empty-state">読み込み中...</div></div>
+    </section>
+
+    <section class="card">
+      <h2>時間枠のブロック</h2>
+      <p class="hint">予約を受け付けたくない時間をタップするとブロックできます。もう一度タップすると解除されます。「予約あり」はここでは解除できません（上の予約一覧からキャンセルしてください）。</p>
+      <div class="date-picker" id="adminDatePicker"></div>
+      <div class="time-picker" id="adminTimePicker"></div>
+    </section>
+
+    <section class="card">
+      <h2>臨時休業日</h2>
+      <p class="hint">毎週水曜定休とは別に、指定した日をまるごと休業日にできます。</p>
+      <div class="closed-date-form">
+        <input type="date" id="closedDateInput">
+        <button type="button" id="addClosedDateBtn" class="btn-submit-sm">休業日にする</button>
+      </div>
+      <div id="closedDatesList"><div class="empty-state">読み込み中...</div></div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, collection, query, where,
+  onSnapshot, runTransaction, setDoc, deleteDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAPM-JrpA2OzG7P3zg5r2pHh90XWEoFdCA",
+  authDomain: "woman-fuwari.firebaseapp.com",
+  projectId: "woman-fuwari",
+  storageBucket: "woman-fuwari.firebasestorage.app",
+  messagingSenderId: "1073396336584",
+  appId: "1:1073396336584:web:6b426807d40bb4fa5662fd"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const CLOSED_WEEKDAY = 3; // 水曜定休
+const TIME_SLOTS = ['10:00','11:30','13:00','14:30','16:00','17:30'];
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+const DAYS_TO_SHOW = 30;
+
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function toISODate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function formatDateLabel(iso){
+  const p = iso.split('-').map(Number);
+  const d = new Date(p[0], p[1]-1, p[2]);
+  return p[1] + '月' + p[2] + '日(' + WEEKDAYS[d.getDay()] + ')';
+}
+function escapeHTML(str){
+  const div = document.createElement('div');
+  div.textContent = (str === undefined || str === null) ? '' : str;
+  return div.innerHTML;
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+/* ---------- Auth ---------- */
+const loginScreen = document.getElementById('loginScreen');
+const adminScreen = document.getElementById('adminScreen');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+const userEmailEl = document.getElementById('userEmail');
+const logoutBtn = document.getElementById('logoutBtn');
+
+let unsubBookings = null;
+let unsubClosedDates = null;
+let unsubAdminSlots = null;
+let adminStarted = false;
+
+loginForm.addEventListener('submit', async function(e){
+  e.preventDefault();
+  loginError.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch(err){
+    loginError.textContent = 'ログインできませんでした。メールアドレスとパスワードをご確認ください。';
+  }
+});
+
+logoutBtn.addEventListener('click', function(){ signOut(auth); });
+
+onAuthStateChanged(auth, function(user){
+  if(user){
+    loginScreen.hidden = true;
+    adminScreen.hidden = false;
+    userEmailEl.textContent = user.email;
+    startBookingsListener();
+    startClosedDatesListener();
+    if(!adminStarted){
+      adminStarted = true;
+      renderAdminDatePicker();
+      subscribeAdminSlots(adminState.selectedDate);
+    }
+  } else {
+    loginScreen.hidden = false;
+    adminScreen.hidden = true;
+    if(unsubBookings){ unsubBookings(); unsubBookings = null; }
+    if(unsubClosedDates){ unsubClosedDates(); unsubClosedDates = null; }
+    if(unsubAdminSlots){ unsubAdminSlots(); unsubAdminSlots = null; }
+    adminStarted = false;
+  }
+});
+
+/* ---------- Bookings list ---------- */
+const bookingsTable = document.getElementById('bookingsTable');
+
+function startBookingsListener(){
+  if(unsubBookings) return;
+  unsubBookings = onSnapshot(collection(db, 'bookings'), function(snap){
+    const rows = [];
+    snap.forEach(function(d){ rows.push(Object.assign({ id: d.id }, d.data())); });
+    rows.sort(function(a,b){ return (a.date+a.time).localeCompare(b.date+b.time); });
+    renderBookings(rows);
+  }, function(err){
+    console.error(err);
+    bookingsTable.innerHTML = '<div class="empty-state">予約一覧の取得に失敗しました。ログイン状態をご確認ください。</div>';
+  });
+}
+
+function renderBookings(rows){
+  if(rows.length === 0){
+    bookingsTable.innerHTML = '<div class="empty-state">現在、予約はありません。</div>';
+    return;
+  }
+  bookingsTable.innerHTML = '';
+  rows.forEach(function(b){
+    const row = document.createElement('div');
+    row.className = 'booking-row';
+    row.innerHTML =
+      '<div class="booking-main">' +
+        '<b>' + formatDateLabel(b.date) + ' ' + escapeHTML(b.time) + '〜</b>' +
+        '<div>' + escapeHTML(b.menu) + '</div>' +
+        '<div>' + escapeHTML(b.name) + ' 様 / ' + escapeHTML(b.tel) + (b.email ? ' / ' + escapeHTML(b.email) : '') + '</div>' +
+        (b.note ? '<div class="note">ご要望: ' + escapeHTML(b.note) + '</div>' : '') +
+      '</div>';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn-cancel';
+    cancelBtn.textContent = 'この予約をキャンセル';
+    cancelBtn.addEventListener('click', async function(){
+      if(!confirm(formatDateLabel(b.date) + ' ' + b.time + '〜 の予約をキャンセルしますか？\nお客様への連絡は別途行ってください。')) return;
+      cancelBtn.disabled = true;
+      try{
+        await runTransaction(db, async function(tx){
+          tx.delete(doc(db, 'bookings', b.id));
+          tx.delete(doc(db, 'slots', b.date + '_' + b.time));
+        });
+        showToast('予約をキャンセルしました。');
+      } catch(err){
+        console.error(err);
+        showToast('キャンセルに失敗しました。');
+        cancelBtn.disabled = false;
+      }
+    });
+    row.appendChild(cancelBtn);
+    bookingsTable.appendChild(row);
+  });
+}
+
+/* ---------- Slot blocker ---------- */
+const adminDatePicker = document.getElementById('adminDatePicker');
+const adminTimePicker = document.getElementById('adminTimePicker');
+const adminState = { selectedDate: null };
+let adminSlotsMap = {};
+let closedDatesSet = new Set();
+
+function buildAdminDateList(){
+  const list = [];
+  const base = new Date(); base.setHours(0,0,0,0);
+  let i = 0;
+  while(list.length < DAYS_TO_SHOW && i < 90){
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const iso = toISODate(d);
+    if(d.getDay() !== CLOSED_WEEKDAY && !closedDatesSet.has(iso)){ list.push(d); }
+    i++;
+  }
+  return list;
+}
+
+function renderAdminDatePicker(){
+  const dates = buildAdminDateList();
+  adminDatePicker.innerHTML = '';
+  dates.forEach(function(d){
+    const iso = toISODate(d);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'date-btn' + (adminState.selectedDate === iso ? ' active' : '');
+    btn.innerHTML = (d.getMonth()+1) + '/' + d.getDate() + '<small>(' + WEEKDAYS[d.getDay()] + ')</small>';
+    btn.addEventListener('click', function(){
+      adminState.selectedDate = iso;
+      renderAdminDatePicker();
+      subscribeAdminSlots(iso);
+    });
+    adminDatePicker.appendChild(btn);
+  });
+  if(dates.length && (!adminState.selectedDate || !dates.some(function(d){ return toISODate(d) === adminState.selectedDate; }))){
+    adminState.selectedDate = toISODate(dates[0]);
+    subscribeAdminSlots(adminState.selectedDate);
+    renderAdminDatePicker();
+  }
+}
+
+function subscribeAdminSlots(dateISO){
+  if(unsubAdminSlots){ unsubAdminSlots(); unsubAdminSlots = null; }
+  adminSlotsMap = {};
+  renderAdminTimePicker();
+  const q = query(collection(db, 'slots'), where('date', '==', dateISO));
+  unsubAdminSlots = onSnapshot(q, function(snap){
+    const map = {};
+    snap.forEach(function(d){ map[d.data().time] = d.data(); });
+    adminSlotsMap = map;
+    renderAdminTimePicker();
+  }, function(err){ console.error(err); });
+}
+
+function renderAdminTimePicker(){
+  adminTimePicker.innerHTML = '';
+  if(!adminState.selectedDate) return;
+  TIME_SLOTS.forEach(function(time){
+    const info = adminSlotsMap[time];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    let statusText, cls;
+    if(info && info.bookingId){
+      statusText = '予約あり';
+      cls = 'time-btn disabled';
+      btn.disabled = true;
+    } else if(info){
+      statusText = 'ブロック中（タップで解除）';
+      cls = 'time-btn selected';
+      btn.addEventListener('click', function(){ toggleBlock(adminState.selectedDate, time, true); });
+    } else {
+      statusText = '空き（タップでブロック）';
+      cls = 'time-btn available';
+      btn.addEventListener('click', function(){ toggleBlock(adminState.selectedDate, time, false); });
+    }
+    btn.className = cls;
+    btn.innerHTML = time + '<span class="status">' + statusText + '</span>';
+    adminTimePicker.appendChild(btn);
+  });
+}
+
+async function toggleBlock(dateISO, time, currentlyBlocked){
+  const ref = doc(db, 'slots', dateISO + '_' + time);
+  try{
+    if(currentlyBlocked){
+      await deleteDoc(ref);
+      showToast(time + '〜 のブロックを解除しました。');
+    } else {
+      await setDoc(ref, { date: dateISO, time: time, blockedByAdmin: true, blockedAt: serverTimestamp() });
+      showToast(time + '〜 をブロックしました。');
+    }
+  } catch(err){
+    console.error(err);
+    showToast('操作に失敗しました。');
+  }
+}
+
+/* ---------- Closed dates ---------- */
+const closedDateInput = document.getElementById('closedDateInput');
+const addClosedDateBtn = document.getElementById('addClosedDateBtn');
+const closedDatesList = document.getElementById('closedDatesList');
+
+function startClosedDatesListener(){
+  if(unsubClosedDates) return;
+  unsubClosedDates = onSnapshot(collection(db, 'closedDates'), function(snap){
+    const dates = [];
+    snap.forEach(function(d){ dates.push(d.id); });
+    closedDatesSet = new Set(dates);
+    renderClosedDatesList(dates);
+    renderAdminDatePicker();
+  }, function(err){
+    console.error(err);
+    closedDatesList.innerHTML = '<div class="empty-state">臨時休業日の取得に失敗しました。</div>';
+  });
+}
+
+function renderClosedDatesList(dates){
+  if(dates.length === 0){
+    closedDatesList.innerHTML = '<div class="empty-state">臨時休業日はありません。</div>';
+    return;
+  }
+  const sorted = dates.slice().sort();
+  closedDatesList.innerHTML = '';
+  sorted.forEach(function(iso){
+    const row = document.createElement('div');
+    row.className = 'booking-row';
+    row.innerHTML = '<div class="booking-main"><b>' + formatDateLabel(iso) + '</b></div>';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-cancel';
+    btn.textContent = '営業日に戻す';
+    btn.addEventListener('click', async function(){
+      try{
+        await deleteDoc(doc(db, 'closedDates', iso));
+        showToast(formatDateLabel(iso) + ' を営業日に戻しました。');
+      } catch(err){
+        console.error(err);
+        showToast('操作に失敗しました。');
+      }
+    });
+    row.appendChild(btn);
+    closedDatesList.appendChild(row);
+  });
+}
+
+addClosedDateBtn.addEventListener('click', async function(){
+  const val = closedDateInput.value;
+  if(!val){ showToast('日付を選択してください。'); return; }
+  try{
+    await setDoc(doc(db, 'closedDates', val), { closedAt: serverTimestamp() });
+    showToast(formatDateLabel(val) + ' を臨時休業日にしました。');
+    closedDateInput.value = '';
+  } catch(err){
+    console.error(err);
+    showToast('操作に失敗しました。');
+  }
+});
+</script>
+</body>
+</html>
